@@ -48,10 +48,11 @@ import org.hibernate.envers.query.AuditEntity;
 import org.hibernate.envers.query.AuditQueryCreator;
 import org.hibernate.envers.synchronization.AuditProcess;
 import org.hibernate.event.EventSource;
+import org.hibernate.proxy.HibernateProxy;
 
 /**
  * @author Adam Warski (adam at warski dot org)
- * @author Hernï¿½n Chanfreau
+ * @author Hern&aacute;n Chanfreau
  */
 public class AuditReaderImpl implements AuditReaderImplementor {
     private final AuditConfiguration verCfg;
@@ -256,10 +257,34 @@ public class AuditReaderImpl implements AuditReaderImplementor {
     }
 	
     public boolean isEntityClassAudited(Class<?> entityClass) {
-        checkNotNull(entityClass, "Entity class");
-        checkSession();
+    	return this.isEntityNameAudited(entityClass.getName());
+    }
 
-        String entityName = entityClass.getName();       
+
+	public boolean isEntityNameAudited(String entityName) {
+        checkNotNull(entityName, "Entity name");
+        checkSession();
         return (verCfg.getEntCfg().isVersioned(entityName));
     }	
+
+
+	public String getEntityName(Object primaryKey, Number revision ,Object entity) throws HibernateException{
+        checkNotNull(primaryKey, "Primary key");
+        checkNotNull(revision, "Entity revision");
+        checkPositive(revision, "Entity revision");
+        checkNotNull(entity, "Entity");
+        checkSession();
+
+		// Unwrap if necessary
+		if(entity instanceof HibernateProxy) {
+			entity = ((HibernateProxy)entity).getHibernateLazyInitializer().getImplementation();
+		}
+		if(firstLevelCache.containsEntityName(primaryKey, revision, entity)) {
+			// it´s on envers FLC! 
+			return firstLevelCache.getFromEntityNameCache(primaryKey, revision, entity);
+		} else {
+			throw new HibernateException(
+						"Envers can´t resolve entityName for historic entity. The id, revision and entity is not on envers first level cache.");
+    }	
+}
 }

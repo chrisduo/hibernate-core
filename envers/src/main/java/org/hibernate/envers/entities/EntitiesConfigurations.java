@@ -29,6 +29,7 @@ import java.util.Map;
 /**
  * Configuration of the user entities: property mapping of the entities, relations, inheritance.
  * @author Adam Warski (adam at warski dot org)
+ * @author Hern&aacute;n Chanfreau
  */
 public class EntitiesConfigurations {
     private Map<String, EntityConfiguration> entitiesConfigurations;

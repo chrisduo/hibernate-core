@@ -6,21 +6,27 @@ import java.net.URL;
 import java.util.List;
 
 import org.hibernate.MappingException;
-import org.hibernate.envers.test.AbstractSessionTest;
+import org.hibernate.envers.test.AbstractOneSessionTest;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 /**
- * @author Hern�n Chanfreau
+ * @author Hern&aacute;n Chanfreau
  * 
  */
 
-public class ReadEntityWhtiEntityNameTest extends AbstractSessionTest{
+@Test(sequential=true)
+public class ReadEntityWhitEntityNameTest extends AbstractOneSessionTest{
 
 	private long id_pers1;
 	private long id_pers2;
 	private long id_pers3;
 	
+	private Person person1_1;
+	private Person person1_2;
+	private Person person1_3;
+	
+	private Person currentPers1;
 	
 	protected void initMappings() throws MappingException, URISyntaxException {
 		URL url = Thread.currentThread().getContextClassLoader().getResource("mappings/entityNames/auditedEntity/mappings.hbm.xml");
@@ -31,7 +37,7 @@ public class ReadEntityWhtiEntityNameTest extends AbstractSessionTest{
     @BeforeClass(dependsOnMethods = "init")
     public void initData() {
     	
-    	newSessionFactory();
+    	initializeSession();
 
         Person pers1 = new Person("Hernan", 28);
         Person pers2 = new Person("Leandro", 29);
@@ -51,7 +57,7 @@ public class ReadEntityWhtiEntityNameTest extends AbstractSessionTest{
         getSession().persist("Personaje",pers2);
         id_pers2 = pers2.getId();
         getSession().getTransaction().commit();
-
+        
         //REV 
         getSession().getTransaction().begin();
         pers1 = (Person)getSession().get("Personaje", id_pers1);
@@ -62,6 +68,10 @@ public class ReadEntityWhtiEntityNameTest extends AbstractSessionTest{
         getSession().persist("Personaje",pers2);
         getSession().persist("Personaje",pers3);
         id_pers3 = pers3.getId();
+        getSession().getTransaction().commit();
+        
+        getSession().getTransaction().begin();
+        currentPers1 = (Person)getSession().get("Personaje", id_pers1);
         getSession().getTransaction().commit();
         
     }
@@ -78,22 +88,48 @@ public class ReadEntityWhtiEntityNameTest extends AbstractSessionTest{
     	assert(pers3Revs.size() == 1);
     }
     
-    @Test
+    @Test(dependsOnMethods="testRetrieveRevisionsWithEntityName")
     public void testRetrieveAuditedEntityWithEntityName() {
-    	Person Person1 = getAuditReader().find(Person.class, "Personaje", id_pers1, 1);
-    	Person Person2 = getAuditReader().find(Person.class, "Personaje", id_pers1, 2);
-    	Person Person3 = getAuditReader().find(Person.class, "Personaje", id_pers1, 3);
+    	person1_1 = getAuditReader().find(Person.class, "Personaje", id_pers1, 1);
+    	person1_2 = getAuditReader().find(Person.class, "Personaje", id_pers1, 2);
+    	person1_3 = getAuditReader().find(Person.class, "Personaje", id_pers1, 3);
     	
-    	System.out.println("Revision 1:");
-    	System.out.println("  > Name: " + Person1.getName());
-    	System.out.println("  > Age: " + Person1.getAge());
-    	System.out.println("Revision 2:");
-    	System.out.println("  > Name: " + Person2.getName());
-    	System.out.println("  > Age: " + Person2.getAge());
-    	System.out.println("Revision 3:");
-    	System.out.println("  > Name: " + Person3.getName());
-    	System.out.println("  > Age: " + Person3.getAge());
+    	assert(person1_1 != null);
+    	assert(person1_2 != null);
+    	assert(person1_3 != null);
+    	
     }
     
+    @Test(dependsOnMethods="testRetrieveAuditedEntityWithEntityName")
+    public void testObtainEntityNameAuditedEntityWithEntityName() {
+    	
+    	String currentPers1EN = getSession().getEntityName(currentPers1);
+    	
+    	String person1EN = getAuditReader().getEntityName(person1_1.getId(), 1, person1_1);
+    	assert (currentPers1EN.equals(person1EN)); 
 
+    	String person2EN = getAuditReader().getEntityName(person1_2.getId(), 2, person1_2);
+    	assert (currentPers1EN.equals(person2EN)); 
+
+    	String person3EN = getAuditReader().getEntityName(person1_3.getId(), 3, person1_3);
+    	assert (currentPers1EN.equals(person3EN)); 
+
+    }    
+    
+    @Test(dependsOnMethods="testObtainEntityNameAuditedEntityWithEntityName")
+    public void testRetrieveAuditedEntityWithEntityNameWithNewSession() {
+    	
+    	// force a new session and AR
+    	forceNewSession();
+
+    	person1_1 = getAuditReader().find(Person.class, "Personaje", id_pers1, 1);
+    	person1_2 = getAuditReader().find(Person.class, "Personaje", id_pers1, 2);
+    	person1_3 = getAuditReader().find(Person.class, "Personaje", id_pers1, 3);
+    	
+    	assert(person1_1 != null);
+    	assert(person1_2 != null);
+    	assert(person1_3 != null);  	
+    }    
+    
+    
 }

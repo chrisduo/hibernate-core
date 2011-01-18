@@ -5,34 +5,43 @@ import java.net.URISyntaxException;
 import java.net.URL;
 
 import org.hibernate.MappingException;
-import org.hibernate.envers.test.AbstractSessionTest;
+import org.hibernate.envers.test.AbstractOneSessionTest;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 /**
- * @author Hern�n Chanfreau
+ * @author Hern&aacute;n Chanfreau
  * 
  */
 
-public class ReadEntityAssociatedAuditedTest extends AbstractSessionTest{
+@Test(sequential=true)
+public class ReadEntityAssociatedAuditedTest extends AbstractOneSessionTest{
 
 	private long id_car1;
 	private long id_car2;
 	
+	private Car currentCar1;
+	private Car car1;
+	
 	private long id_pers1; 
-	private long id_pers2; 
+	private long id_pers2;
+	
+	private Person currentPerson1;
+	private Person person1;
+	
+	
 	
 	
 	protected void initMappings() throws MappingException, URISyntaxException {
 		URL url = Thread.currentThread().getContextClassLoader().getResource("mappings/entityNames/singleAssociatedAudited/mappings.hbm.xml");
         config.addFile(new File(url.toURI()));
 	}
-	
+
 	
     @BeforeClass(dependsOnMethods = "init")
     public void initData() {
     	
-    	newSessionFactory();
+    	initializeSession();
 
         Person pers1 = new Person("Hernan", 15);
         Person pers2 = new Person("Leandro", 19);
@@ -57,21 +66,67 @@ public class ReadEntityAssociatedAuditedTest extends AbstractSessionTest{
         getSession().getTransaction().commit();
         id_car2 = car2.getId();
         id_pers2 = pers2.getId();
-
+        
     }
     
-    @Test
-    public void testGetAssociationWithEntityName() {
-
-    	Person person1 = (Person)getSession().get("Personaje", id_pers1);
-    	Car car1 = getAuditReader().find(Car.class, id_car1, 1);
-    	Person person1_1 = car1.getOwner();
-    	assert(person1.getAge() != person1_1.getAge());
+    private void loadDataOnSessionAndAuditReader() {
+        currentCar1 = (Car)getSession().get(Car.class, id_car1);
+        currentPerson1 = (Person)getSession().get("Personaje", id_pers1);
+		car1 = getAuditReader().find(Car.class, id_car1, 1);
+    	person1 = car1.getOwner();
+    	
+    }
+    
+	private void checkEntities() {
+    	assert(currentPerson1.getAge() != person1.getAge());
     	
     	Person person2 = (Person)getSession().get("Personaje", id_pers2);
     	Car car2 = getAuditReader().find(Car.class, id_car2, 2);
     	Person person2_1 = car2.getOwner();
     	assert(person2.getAge() == person2_1.getAge());
+	}
+	
+
+	private void checkEntityNames() {
+		String currentCar1EN = getSession().getEntityName(currentCar1);
+    	
+    	String currentPerson1EN = getSession().getEntityName(currentPerson1);
+    	
+    	String car1EN = getAuditReader().getEntityName(id_car1, 1, car1);
+    	assert (currentCar1EN.equals(car1EN));
+    	
+    	String person1EN = getAuditReader().getEntityName(id_pers1, 1, person1);
+    	assert (currentPerson1EN.equals(person1EN));
+	}    
+	
+    @Test
+    public void testGetAssociationWithEntityName() {
+    	loadDataOnSessionAndAuditReader();
+    	checkEntities();
+    	checkEntityNames();
     }
+
+
+    @Test(dependsOnMethods="testGetAssociationWithEntityName")
+    public void testGetAssociationWithEntityNameInNewSession() {
+    	//force a new session and AR
+    	forceNewSession();
+
+    	loadDataOnSessionAndAuditReader();
+
+    	checkEntities();
+    	
+    	checkEntityNames();
+
+//
+//    	Car car1 = getAuditReader().find(Car.class, id_car1, 1);
+//    	car1.getOwner().getName();
+//    	Car car2 = getAuditReader().find(Car.class, id_car2, 2);
+//    	car2.getOwner().getName();
+//    	
+//    	Person person = getAuditReader().find(Person.class, "Personaje", id_car2, 2);
+//    	person.getName();
+    	 
+    }    
 
 }

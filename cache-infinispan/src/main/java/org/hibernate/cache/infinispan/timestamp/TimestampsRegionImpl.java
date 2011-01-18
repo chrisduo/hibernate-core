@@ -57,8 +57,20 @@ public class TimestampsRegionImpl extends BaseGeneralDataRegion implements Times
 
    public Object get(Object key) throws CacheException {
       Object value = localCache.get(key);
+
+      // If the region is not valid, skip cache store to avoid going remote to retrieve the query.
+      // The aim of this is to maintain same logic/semantics as when state transfer was configured.
+      // TODO: Once https://issues.jboss.org/browse/ISPN-835 has been resolved, revert to state transfer and remove workaround
+      boolean skipCacheStore = false;
+      if (!isValid())
+         skipCacheStore = true;
+
       if (value == null && checkValid()) {
-         value = get(key, null, false);
+         if (skipCacheStore)
+            value = get(key, false, FlagAdapter.SKIP_CACHE_STORE);
+         else
+            value = get(key, false);
+
          if (value != null)
             localCache.put(key, value);
       }
@@ -70,7 +82,8 @@ public class TimestampsRegionImpl extends BaseGeneralDataRegion implements Times
       // prevents reads and other updates
       Transaction tx = suspend();
       try {
-         // We ensure ASYNC semantics (JBCACHE-1175)
+         // We ensure ASYNC semantics (JBCACHE-1175) and make sure previous
+         // value is not loaded from cache store cos it's not needed.
          cacheAdapter.withFlags(FlagAdapter.FORCE_ASYNCHRONOUS).put(key, value);
       } catch (Exception e) {
          throw new CacheException(e);
