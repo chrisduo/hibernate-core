@@ -23,6 +23,11 @@
  */
 package org.hibernate.envers.entities.mapper.relation;
 
+import java.io.Serializable;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.hibernate.collection.spi.PersistentCollection;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.envers.configuration.AuditConfiguration;
@@ -35,12 +40,8 @@ import org.hibernate.envers.entities.mapper.relation.lazy.ToOneDelegateSessionIm
 import org.hibernate.envers.reader.AuditReaderImplementor;
 import org.hibernate.envers.tools.Tools;
 import org.hibernate.envers.tools.reflection.ReflectionTools;
+import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.property.Setter;
-
-import java.io.Serializable;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * @author Adam Warski (adam at warski dot org)
@@ -98,8 +99,29 @@ public class ToOneIdMapper implements PropertyMapper {
 
                 Class<?> entityClass = ReflectionTools.loadClass(entCfg.getEntityClassName());
 
-                value = versionsReader.getSessionImplementor().getFactory().getEntityPersister(referencedEntityName).
-                        createProxy((Serializable)entityId, new ToOneDelegateSessionImplementor(versionsReader, entityClass, entityId, revision, verCfg));
+				EntityPersister persister = versionsReader
+						.getSessionImplementor().getFactory()
+						.getEntityPersister(referencedEntityName);
+
+				if (persister.hasProxy()) {
+					value = persister.createProxy((Serializable) entityId,
+							new ToOneDelegateSessionImplementor(versionsReader,
+									entityClass, entityId, revision, verCfg));
+
+				} else {
+					// get the object directly (see also ToOneDelegateSessionImplementor)
+					if (verCfg.getEntCfg().getNotVersionEntityConfiguration(
+							referencedEntityName) == null) {
+						// audited relation, look up entity with envers
+						value = versionsReader.find(entityClass,
+								referencedEntityName, entityId, revision);
+					} else {
+						// notAudited relation, look up entity with hibernate
+						value = versionsReader.getSessionImplementor()
+								.immediateLoad(referencedEntityName,
+										(Serializable) entityId);
+					}
+				}
             }
         }
 
